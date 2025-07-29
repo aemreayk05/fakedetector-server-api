@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: fakedetector-api
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_KEY
+        value: fakedetector-secret-key-2025
+      - key: PORT
+        value: 10000
+    healthCheckPath: /api/health
+    autoDeploy: true 
