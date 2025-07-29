@@ -59,7 +59,7 @@ const createTables = () => {
       )
     `;
 
-    // Tabloları sırayla oluştur
+    // Tabloları sırayla oluştur ve eksik column'ları ekle
     db.serialize(() => {
       db.run(analysisResultsTable, (err) => {
         if (err) {
@@ -69,24 +69,62 @@ const createTables = () => {
         }
         console.log('✅ analysis_results tablosu oluşturuldu');
 
-        db.run(userFeedbackTable, (err) => {
+        // image_data column'unu kontrol et ve ekle
+        db.get("PRAGMA table_info(analysis_results)", (err, rows) => {
           if (err) {
-            console.error('❌ user_feedback tablosu oluşturma hatası:', err);
+            console.error('❌ Tablo bilgisi alma hatası:', err);
             reject(err);
             return;
           }
-          console.log('✅ user_feedback tablosu oluşturuldu');
-
-          db.run(systemLogsTable, (err) => {
+          
+          // Tablo yapısını kontrol et
+          db.all("PRAGMA table_info(analysis_results)", (err, columns) => {
             if (err) {
-              console.error('❌ system_logs tablosu oluşturma hatası:', err);
+              console.error('❌ Tablo yapısı kontrol hatası:', err);
               reject(err);
               return;
             }
-            console.log('✅ system_logs tablosu oluşturuldu');
-            resolve();
+            
+            const hasImageData = columns.some(col => col.name === 'image_data');
+            
+            if (!hasImageData) {
+              console.log('🔄 image_data column\'u ekleniyor...');
+              db.run("ALTER TABLE analysis_results ADD COLUMN image_data TEXT", (err) => {
+                if (err) {
+                  console.error('❌ image_data column ekleme hatası:', err);
+                  reject(err);
+                  return;
+                }
+                console.log('✅ image_data column\'u eklendi');
+                continueWithOtherTables();
+              });
+            } else {
+              console.log('✅ image_data column\'u zaten mevcut');
+              continueWithOtherTables();
+            }
           });
         });
+
+        const continueWithOtherTables = () => {
+          db.run(userFeedbackTable, (err) => {
+            if (err) {
+              console.error('❌ user_feedback tablosu oluşturma hatası:', err);
+              reject(err);
+              return;
+            }
+            console.log('✅ user_feedback tablosu oluşturuldu');
+
+            db.run(systemLogsTable, (err) => {
+              if (err) {
+                console.error('❌ system_logs tablosu oluşturma hatası:', err);
+                reject(err);
+                return;
+              }
+              console.log('✅ system_logs tablosu oluşturuldu');
+              resolve();
+            });
+          });
+        };
       });
     });
   });
