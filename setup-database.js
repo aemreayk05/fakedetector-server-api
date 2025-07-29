@@ -171,34 +171,31 @@ const insertSampleData = () => {
 // Ana kurulum fonksiyonu
 const setupDatabase = async () => {
   try {
+    console.log('🔄 Veritabanı kurulumu başlıyor...');
     await createTables();
     await createIndexes();
     
-    // Örnek veri eklemek ister misiniz?
-    const readline = require('readline');
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout
-    });
-
-    rl.question('Örnek veri eklemek ister misiniz? (y/n): ', async (answer) => {
-      if (answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes') {
-        await insertSampleData();
+    // RESET_DATABASE environment variable'ı kontrol et
+    if (process.env.RESET_DATABASE === 'true') {
+      console.log('🔄 Veritabanı sıfırlanıyor...');
+      // Örnek veri ekleme
+      await insertSampleData();
+      console.log('✅ Veritabanı sıfırlandı ve örnek veriler eklendi');
+    } else {
+      console.log('ℹ️ Veritabanı kurulumu tamamlandı (örnek veri eklenmedi)');
+    }
+    
+    console.log('\n🎉 Veritabanı kurulumu tamamlandı!');
+    console.log('📁 Veritabanı dosyası: ./database.sqlite');
+    console.log('🚀 Sunucuyu başlatmak için: npm start');
+    
+    db.close((err) => {
+      if (err) {
+        console.error('❌ Veritabanı kapatma hatası:', err);
+      } else {
+        console.log('✅ Veritabanı bağlantısı kapatıldı');
       }
-      
-      console.log('\n🎉 Veritabanı kurulumu tamamlandı!');
-      console.log('📁 Veritabanı dosyası: ./database.sqlite');
-      console.log('🚀 Sunucuyu başlatmak için: npm start');
-      
-      db.close((err) => {
-        if (err) {
-          console.error('❌ Veritabanı kapatma hatası:', err);
-        } else {
-          console.log('✅ Veritabanı bağlantısı kapatıldı');
-        }
-        rl.close();
-        process.exit(0);
-      });
+      process.exit(0);
     });
 
   } catch (error) {
