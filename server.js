@@ -48,6 +48,7 @@ const authenticateApiKey = (req, res, next) => {
 app.post('/api/analysis-results', authenticateApiKey, (req, res) => {
   const {
     image_hash,
+    image_data,
     prediction,
     confidence,
     analysis_mode,
@@ -63,14 +64,14 @@ app.post('/api/analysis-results', authenticateApiKey, (req, res) => {
 
   const sql = `
     INSERT INTO analysis_results (
-      image_hash, prediction, confidence, analysis_mode, processing_time,
+      image_hash, image_data, prediction, confidence, analysis_mode, processing_time,
       model_used, model_author, probabilities, raw_score, timestamp,
       device_info, app_version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   const params = [
-    image_hash, prediction, confidence, analysis_mode, processing_time,
+    image_hash, image_data, prediction, confidence, analysis_mode, processing_time,
     model_used, model_author, probabilities, raw_score, timestamp,
     JSON.stringify(device_info), app_version
   ];
@@ -206,6 +207,37 @@ app.get('/api/health', authenticateApiKey, (req, res) => {
     timestamp: new Date().toISOString(),
     version: '1.0.0',
     database: 'connected'
+  });
+});
+
+// Veritabanını sıfırla ve yeniden oluştur
+app.post('/api/reset-database', authenticateApiKey, (req, res) => {
+  console.log('🔄 Veritabanı sıfırlanıyor...');
+  
+  // Veritabanını kapat
+  db.close((err) => {
+    if (err) {
+      console.error('❌ Veritabanı kapatma hatası:', err);
+    }
+    
+    // Veritabanı dosyasını sil
+    const fs = require('fs');
+    if (fs.existsSync('database.sqlite')) {
+      fs.unlinkSync('database.sqlite');
+      console.log('🗑️ Eski veritabanı silindi');
+    }
+    
+    // Yeni veritabanı oluştur
+    const setupDatabase = require('./setup-database');
+    setupDatabase()
+      .then(() => {
+        console.log('✅ Veritabanı yeniden oluşturuldu');
+        res.json({ message: 'Veritabanı başarıyla sıfırlandı' });
+      })
+      .catch((error) => {
+        console.error('❌ Veritabanı oluşturma hatası:', error);
+        res.status(500).json({ error: 'Veritabanı sıfırlama hatası' });
+      });
   });
 });
 

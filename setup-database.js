@@ -20,6 +20,7 @@ const createTables = () => {
       CREATE TABLE IF NOT EXISTS analysis_results (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         image_hash VARCHAR(64),
+        image_data TEXT,
         prediction VARCHAR(10),
         confidence DECIMAL(5,2),
         analysis_mode VARCHAR(50),
@@ -126,6 +127,7 @@ const insertSampleData = () => {
   return new Promise((resolve, reject) => {
     const sampleAnalysis = {
       image_hash: 'sample_hash_123',
+      image_data: 'https://picsum.photos/200/200?random=1',
       prediction: 'Gerçek',
       confidence: 85.5,
       analysis_mode: 'haywoodsloan',
@@ -141,14 +143,14 @@ const insertSampleData = () => {
 
     const sql = `
       INSERT INTO analysis_results (
-        image_hash, prediction, confidence, analysis_mode, processing_time,
+        image_hash, image_data, prediction, confidence, analysis_mode, processing_time,
         model_used, model_author, probabilities, raw_score, timestamp,
         device_info, app_version
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const params = [
-      sampleAnalysis.image_hash, sampleAnalysis.prediction, sampleAnalysis.confidence,
+      sampleAnalysis.image_hash, sampleAnalysis.image_data, sampleAnalysis.prediction, sampleAnalysis.confidence,
       sampleAnalysis.analysis_mode, sampleAnalysis.processing_time, sampleAnalysis.model_used,
       sampleAnalysis.model_author, sampleAnalysis.probabilities, sampleAnalysis.raw_score,
       sampleAnalysis.timestamp, sampleAnalysis.device_info, sampleAnalysis.app_version
