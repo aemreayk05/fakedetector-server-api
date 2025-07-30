@@ -32,6 +32,7 @@ const createTables = () => {
         timestamp DATETIME,
         device_info TEXT,
         app_version VARCHAR(20),
+        user_id VARCHAR(100),
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `;
@@ -86,6 +87,7 @@ const createTables = () => {
             }
             
             const hasImageData = columns.some(col => col.name === 'image_data');
+            const hasUserId = columns.some(col => col.name === 'user_id');
             
             if (!hasImageData) {
               console.log('🔄 image_data column\'u ekleniyor...');
@@ -96,12 +98,30 @@ const createTables = () => {
                   return;
                 }
                 console.log('✅ image_data column\'u eklendi');
-                continueWithOtherTables();
+                checkUserIdColumn();
               });
             } else {
               console.log('✅ image_data column\'u zaten mevcut');
-              continueWithOtherTables();
+              checkUserIdColumn();
             }
+            
+            const checkUserIdColumn = () => {
+              if (!hasUserId) {
+                console.log('🔄 user_id column\'u ekleniyor...');
+                db.run("ALTER TABLE analysis_results ADD COLUMN user_id VARCHAR(100)", (err) => {
+                  if (err) {
+                    console.error('❌ user_id column ekleme hatası:', err);
+                    reject(err);
+                    return;
+                  }
+                  console.log('✅ user_id column\'u eklendi');
+                  continueWithOtherTables();
+                });
+              } else {
+                console.log('✅ user_id column\'u zaten mevcut');
+                continueWithOtherTables();
+              }
+            };
           });
         });
 
@@ -109,21 +129,21 @@ const createTables = () => {
           db.run(userFeedbackTable, (err) => {
             if (err) {
               console.error('❌ user_feedback tablosu oluşturma hatası:', err);
+            reject(err);
+            return;
+          }
+          console.log('✅ user_feedback tablosu oluşturuldu');
+
+          db.run(systemLogsTable, (err) => {
+            if (err) {
+              console.error('❌ system_logs tablosu oluşturma hatası:', err);
               reject(err);
               return;
             }
-            console.log('✅ user_feedback tablosu oluşturuldu');
-
-            db.run(systemLogsTable, (err) => {
-              if (err) {
-                console.error('❌ system_logs tablosu oluşturma hatası:', err);
-                reject(err);
-                return;
-              }
-              console.log('✅ system_logs tablosu oluşturuldu');
-              resolve();
-            });
+            console.log('✅ system_logs tablosu oluşturuldu');
+            resolve();
           });
+        });
         };
       });
     });
@@ -137,6 +157,7 @@ const createIndexes = () => {
       'CREATE INDEX IF NOT EXISTS idx_analysis_timestamp ON analysis_results(timestamp)',
       'CREATE INDEX IF NOT EXISTS idx_analysis_prediction ON analysis_results(prediction)',
       'CREATE INDEX IF NOT EXISTS idx_analysis_mode ON analysis_results(analysis_mode)',
+      'CREATE INDEX IF NOT EXISTS idx_analysis_user_id ON analysis_results(user_id)',
       'CREATE INDEX IF NOT EXISTS idx_feedback_analysis_id ON user_feedback(analysis_id)',
       'CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON system_logs(timestamp)',
       'CREATE INDEX IF NOT EXISTS idx_logs_level ON system_logs(level)'
@@ -183,15 +204,15 @@ const insertSampleData = () => {
       INSERT INTO analysis_results (
         image_hash, image_data, prediction, confidence, analysis_mode, processing_time,
         model_used, model_author, probabilities, raw_score, timestamp,
-        device_info, app_version
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        device_info, app_version, user_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const params = [
       sampleAnalysis.image_hash, sampleAnalysis.image_data, sampleAnalysis.prediction, sampleAnalysis.confidence,
       sampleAnalysis.analysis_mode, sampleAnalysis.processing_time, sampleAnalysis.model_used,
       sampleAnalysis.model_author, sampleAnalysis.probabilities, sampleAnalysis.raw_score,
-      sampleAnalysis.timestamp, sampleAnalysis.device_info, sampleAnalysis.app_version
+      sampleAnalysis.timestamp, sampleAnalysis.device_info, sampleAnalysis.app_version, 'sample_user_123'
     ];
 
     db.run(sql, params, function(err) {
@@ -217,23 +238,23 @@ const setupDatabase = async () => {
     if (process.env.RESET_DATABASE === 'true') {
       console.log('🔄 Veritabanı sıfırlanıyor...');
       // Örnek veri ekleme
-      await insertSampleData();
+        await insertSampleData();
       console.log('✅ Veritabanı sıfırlandı ve örnek veriler eklendi');
     } else {
       console.log('ℹ️ Veritabanı kurulumu tamamlandı (örnek veri eklenmedi)');
-    }
-    
-    console.log('\n🎉 Veritabanı kurulumu tamamlandı!');
-    console.log('📁 Veritabanı dosyası: ./database.sqlite');
-    console.log('🚀 Sunucuyu başlatmak için: npm start');
-    
-    db.close((err) => {
-      if (err) {
-        console.error('❌ Veritabanı kapatma hatası:', err);
-      } else {
-        console.log('✅ Veritabanı bağlantısı kapatıldı');
       }
-      process.exit(0);
+      
+      console.log('\n🎉 Veritabanı kurulumu tamamlandı!');
+      console.log('📁 Veritabanı dosyası: ./database.sqlite');
+      console.log('🚀 Sunucuyu başlatmak için: npm start');
+      
+      db.close((err) => {
+        if (err) {
+          console.error('❌ Veritabanı kapatma hatası:', err);
+        } else {
+          console.log('✅ Veritabanı bağlantısı kapatıldı');
+        }
+        process.exit(0);
     });
 
   } catch (error) {

@@ -30,22 +30,28 @@ const db = new sqlite3.Database('./database.sqlite', (err) => {
   }
 });
 
-// API Key middleware
-const authenticateApiKey = (req, res, next) => {
+// Kullanıcı kimliği ve API Key middleware
+const authenticateUser = (req, res, next) => {
+  const userId = req.headers['user-id'];
   const apiKey = req.headers.authorization?.replace('Bearer ', '');
   const validApiKey = process.env.API_KEY || 'fakedetector-secret-key-2025';
+  
+  if (!userId) {
+    return res.status(400).json({ error: 'Kullanıcı kimliği gerekli' });
+  }
   
   if (!apiKey || apiKey !== validApiKey) {
     return res.status(401).json({ error: 'Geçersiz API anahtarı' });
   }
   
+  req.userId = userId; // Request'e kullanıcı kimliği ekle
   next();
 };
 
 // ===== ANALİZ SONUÇLARI ENDPOINT'LERİ =====
 
 // Analiz sonucu kaydet
-app.post('/api/analysis-results', authenticateApiKey, (req, res) => {
+app.post('/api/analysis-results', authenticateUser, (req, res) => {
   const {
     image_hash,
     image_data,
@@ -61,19 +67,21 @@ app.post('/api/analysis-results', authenticateApiKey, (req, res) => {
     device_info,
     app_version
   } = req.body;
+  
+  const userId = req.userId; // Middleware'den kullanıcı kimliği al
 
   const sql = `
     INSERT INTO analysis_results (
       image_hash, image_data, prediction, confidence, analysis_mode, processing_time,
       model_used, model_author, probabilities, raw_score, timestamp,
-      device_info, app_version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      device_info, app_version, user_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   const params = [
     image_hash, image_data, prediction, confidence, analysis_mode, processing_time,
     model_used, model_author, probabilities, raw_score, timestamp,
-    JSON.stringify(device_info), app_version
+    JSON.stringify(device_info), app_version, userId
   ];
 
   db.run(sql, params, function(err) {
@@ -90,17 +98,19 @@ app.post('/api/analysis-results', authenticateApiKey, (req, res) => {
 });
 
 // Analiz geçmişini getir
-app.get('/api/analysis-results', authenticateApiKey, (req, res) => {
+app.get('/api/analysis-results', authenticateUser, (req, res) => {
+  const userId = req.userId; // Middleware'den kullanıcı kimliği al
   const limit = parseInt(req.query.limit) || 50;
   const offset = parseInt(req.query.offset) || 0;
 
   const sql = `
     SELECT * FROM analysis_results 
+    WHERE user_id = ?
     ORDER BY created_at DESC 
     LIMIT ? OFFSET ?
   `;
 
-  db.all(sql, [limit, offset], (err, rows) => {
+  db.all(sql, [userId, limit, offset], (err, rows) => {
     if (err) {
       console.error('❌ Geçmiş getirme hatası:', err);
       return res.status(500).json({ error: 'Veritabanı hatası' });
@@ -115,24 +125,26 @@ app.get('/api/analysis-results', authenticateApiKey, (req, res) => {
   });
 });
 
-// Tüm geçmişi temizle
-app.delete('/api/analysis-results', authenticateApiKey, (req, res) => {
-  const sql = 'DELETE FROM analysis_results';
+// Kullanıcının geçmişini temizle
+app.delete('/api/analysis-results', authenticateUser, (req, res) => {
+  const userId = req.userId; // Middleware'den kullanıcı kimliği al
   
-  db.run(sql, (err) => {
+  const sql = 'DELETE FROM analysis_results WHERE user_id = ?';
+  
+  db.run(sql, [userId], (err) => {
     if (err) {
       console.error('❌ Geçmiş temizleme hatası:', err);
       return res.status(500).json({ error: 'Veritabanı hatası' });
     }
     
-    res.json({ message: 'Tüm geçmiş temizlendi' });
+    res.json({ message: 'Kullanıcı geçmişi temizlendi' });
   });
 });
 
 // ===== GERİ BİLDİRİM ENDPOINT'LERİ =====
 
 // Kullanıcı geri bildirimi kaydet
-app.post('/api/feedback', authenticateApiKey, (req, res) => {
+app.post('/api/feedback', authenticateUser, (req, res) => {
   const { analysis_id, feedback, timestamp } = req.body;
 
   const sql = `
@@ -155,12 +167,13 @@ app.post('/api/feedback', authenticateApiKey, (req, res) => {
 
 // ===== İSTATİSTİK ENDPOINT'LERİ =====
 
-// İstatistikleri getir
-app.get('/api/statistics', authenticateApiKey, (req, res) => {
+// Kullanıcının istatistiklerini getir
+app.get('/api/statistics', authenticateUser, (req, res) => {
+  const userId = req.userId; // Middleware'den kullanıcı kimliği al
   const stats = {};
   
-  // Toplam analiz sayısı
-  db.get('SELECT COUNT(*) as total FROM analysis_results', (err, row) => {
+  // Kullanıcının toplam analiz sayısı
+  db.get('SELECT COUNT(*) as total FROM analysis_results WHERE user_id = ?', [userId], (err, row) => {
     if (err) {
       console.error('❌ İstatistik hatası:', err);
       return res.status(500).json({ error: 'Veritabanı hatası' });
@@ -168,13 +181,14 @@ app.get('/api/statistics', authenticateApiKey, (req, res) => {
     
     stats.totalAnalyses = row.total;
     
-    // Gerçek/Sahte dağılımı
+    // Kullanıcının gerçek/sahte dağılımı
     db.get(`
       SELECT 
         SUM(CASE WHEN prediction = 'Gerçek' THEN 1 ELSE 0 END) as real_count,
         SUM(CASE WHEN prediction = 'Sahte' THEN 1 ELSE 0 END) as fake_count
-      FROM analysis_results
-    `, (err, row) => {
+      FROM analysis_results 
+      WHERE user_id = ?
+    `, [userId], (err, row) => {
       if (err) {
         console.error('❌ İstatistik hatası:', err);
         return res.status(500).json({ error: 'Veritabanı hatası' });
@@ -183,8 +197,8 @@ app.get('/api/statistics', authenticateApiKey, (req, res) => {
       stats.realCount = row.real_count || 0;
       stats.fakeCount = row.fake_count || 0;
       
-      // Ortalama güven oranı
-      db.get('SELECT AVG(confidence) as avg_confidence FROM analysis_results', (err, row) => {
+      // Kullanıcının ortalama güven oranı
+      db.get('SELECT AVG(confidence) as avg_confidence FROM analysis_results WHERE user_id = ?', [userId], (err, row) => {
         if (err) {
           console.error('❌ İstatistik hatası:', err);
           return res.status(500).json({ error: 'Veritabanı hatası' });
