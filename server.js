@@ -215,7 +215,7 @@ app.get('/api/statistics', authenticateUser, (req, res) => {
 // ===== SİSTEM ENDPOINT'LERİ =====
 
 // Sunucu sağlık durumu
-app.get('/api/health', authenticateApiKey, (req, res) => {
+app.get('/api/health', (req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -225,7 +225,7 @@ app.get('/api/health', authenticateApiKey, (req, res) => {
 });
 
 // Veritabanını sıfırla ve yeniden oluştur
-app.post('/api/reset-database', authenticateApiKey, (req, res) => {
+app.post('/api/reset-database', (req, res) => {
   console.log('🔄 Veritabanı sıfırlanıyor...');
   
   // Veritabanını kapat
